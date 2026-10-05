@@ -1,0 +1,3 @@
+[submodule "third_party/SoftSkill"]
+	path = third_party/SoftSkill
+	url = https://github.com/xijia-tao/SoftSkill

@@ -1,0 +1,89 @@
+diff --git a/skillopt/softprefix/model.py b/skillopt/softprefix/model.py
+index 8702d1d..9a3a33a 100644
+--- a/skillopt/softprefix/model.py
++++ b/skillopt/softprefix/model.py
+@@ -76,6 +76,7 @@ class SoftPrefixCausalLM:
+         torch_dtype: str = "auto",
+         device: str = "auto",
+         trust_remote_code: bool = False,
++        gradient_checkpointing: bool = False,
+     ) -> None:
+         torch, AutoModelForCausalLM, AutoTokenizer = _import_torch_and_transformers()
+         self.torch = torch
+@@ -111,6 +112,13 @@ class SoftPrefixCausalLM:
+         self.model.eval()
+         for param in self.model.parameters():
+             param.requires_grad_(False)
++        # Opt-in activation recomputation so 8B-scale backbones fit a 40 GB GPU at
++        # the upstream batch size. HF only checkpoints layers in train() mode, so
++        # forward() switches to train() for the loss pass and back to eval();
++        # Qwen3 / Qwen3.5 have no dropout, so the computed loss is unchanged.
++        self.gradient_checkpointing = bool(gradient_checkpointing)
++        if self.gradient_checkpointing:
++            self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+ 
+         # With device_map="auto" the model spans multiple GPUs; anchor our
+         # trainable prefix on the same device as the token embedding layer.
+@@ -244,10 +252,18 @@ class SoftPrefixCausalLM:
+             labels,
+             prefix_insert_idx=batch.get("prefix_insert_idx"),
+         )
+-        outputs = self.model(
+-            inputs_embeds=inputs_embeds,
+-            attention_mask=full_attention_mask,
+-        )
++        use_checkpointing = getattr(self, "gradient_checkpointing", False)
++        if use_checkpointing:
++            self.model.train()
++        try:
++            outputs = self.model(
++                inputs_embeds=inputs_embeds,
++                attention_mask=full_attention_mask,
++                **({"use_cache": False} if use_checkpointing else {}),
++            )
++        finally:
++            if use_checkpointing:
++                self.model.eval()
+         return SimpleNamespace(loss=_masked_causal_lm_loss(self.torch, outputs.logits, full_labels))
+ 
+     def generate_from_prompt(
+diff --git a/skillopt/softprefix/trainer.py b/skillopt/softprefix/trainer.py
+index 4bcf383..c623fd9 100644
+--- a/skillopt/softprefix/trainer.py
++++ b/skillopt/softprefix/trainer.py
+@@ -155,6 +155,7 @@ class SoftPrefixSettings:
+     inference_base_url: str = "http://127.0.0.1:8010"
+     inference_timeout_seconds: float = 300.0
+     injection_position: str = "prompt_start"
++    gradient_checkpointing: bool = False
+ 
+     @classmethod
+     def from_dict(cls, cfg: dict[str, Any]) -> "SoftPrefixSettings":
+@@ -203,6 +204,7 @@ class SoftPrefixSettings:
+             injection_position=normalize_prefix_injection_position(
+                 cfg.get("injection_position", "prompt_start")
+             ),
++            gradient_checkpointing=_parse_bool(cfg.get("gradient_checkpointing", False)),
+         )
+ 
+ 
+@@ -2573,6 +2575,11 @@ def _build_prefix_model(env: str, settings: SoftPrefixSettings, init_text: str)
+             "soft_prefix.architecture must be one of auto, causal_lm, or vision_lm"
+         )
+     model_cls = SoftPrefixVisionLM if use_vision_model else SoftPrefixCausalLM
++    extra_kwargs = {}
++    if settings.gradient_checkpointing:
++        if use_vision_model:
++            raise ValueError("soft_prefix.gradient_checkpointing is only implemented for the causal_lm wrapper")
++        extra_kwargs["gradient_checkpointing"] = True
+     return model_cls(
+         settings.model_name,
+         prefix_length=settings.prefix_length,
+@@ -2581,6 +2588,7 @@ def _build_prefix_model(env: str, settings: SoftPrefixSettings, init_text: str)
+         torch_dtype=settings.torch_dtype,
+         device=settings.device,
+         trust_remote_code=settings.trust_remote_code,
++        **extra_kwargs,
+     )
+ 
+ 
