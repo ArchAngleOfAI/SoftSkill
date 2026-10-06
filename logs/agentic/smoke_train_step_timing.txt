@@ -1,0 +1,10 @@
+prefix=  32 seq= 2048 batch=1:   2.31 s/step  peak  19.4 GiB
+prefix=  32 seq= 4096 batch=1:   4.63 s/step  peak  23.5 GiB
+prefix=  32 seq= 8192 batch=1:   9.88 s/step  peak  31.6 GiB
+prefix=  32 seq=16384 batch=1: OOM
+prefix=  32 seq= 8192 batch=2: OOM
+prefix=2705 seq= 2048 batch=1:   5.19 s/step  peak  20.5 GiB
+prefix=2705 seq= 4096 batch=1:   7.81 s/step  peak  24.3 GiB
+prefix=2705 seq= 8192 batch=1:  13.44 s/step  peak  32.5 GiB
+prefix=2705 seq=16384 batch=1: OOM
+prefix=2705 seq= 8192 batch=2: OOM
