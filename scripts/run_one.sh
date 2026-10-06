@@ -8,6 +8,8 @@
 #   POSITION  prompt_start | skill_section
 #   MODE      train   - SoftSkill: p0 from NL skill, train delta, select by val
 #             init    - init-only: p0 inserted, no training (num_epochs=0)
+#             init_maxpool / init_meanpool - init-only with p0 = element-wise max / mean of the NL
+#                       skill's token embeddings, tiled to the prefix length (patches/pooled_init.patch)
 #             noskill - plain model, no prefix, no skill text
 #             hard    - SkillOpt Markdown artifact as text in the skill section
 #   MODEL_TAG qwen3_8b | qwen35_4b
@@ -47,6 +49,8 @@ ENTRY=(scripts/train_soft_prefix.py)
 case "${MODE}" in
   train) ;;
   init)    opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true) ;;
+  init_maxpool)  opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true soft_prefix.init_strategy=text_max_pool) ;;
+  init_meanpool) opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true soft_prefix.init_strategy=text_mean_pool) ;;
   noskill) opts+=(train.num_epochs=0 soft_prefix.eval_plain_baseline=true) ;;
   hard)
     # Same harness as noskill, but the prompt builders render the SkillOpt

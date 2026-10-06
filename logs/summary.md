@@ -8,6 +8,8 @@
 | Hard skill (SkillOpt artifact, text) | – | – | – | – | – / – |
 | Init-only p0, prompt_start | – | – | – | – | – / – |
 | Init-only p0, skill_section | – | – | – | – | – / – |
+| Init-only max-pooled p0, prompt_start | 68.9 | 76.8 | 0.0 | 0.0 | 1 / 1 |
+| Init-only mean-pooled p0, prompt_start | – | – | 0.0 | 0.0 | – / 1 |
 | SoftSkill, prompt_start | 76.6 | 84.3 | – | – | 1 / – |
 | SoftSkill, skill_section | – | – | – | – | – / – |
 
@@ -15,6 +17,9 @@
 
 | Run | test-hard | test-soft | selected epoch | val (per epoch, gate metric) | avg gen tokens | hit max_new_tokens |
 |---|---|---|---|---|---|---|
+| qwen35_4b_livemath_init_maxpool_prompt_start_seed1 | 0.0 | 0.0 |  | hard 0.0 | 15.9 | 98% |
+| qwen35_4b_livemath_init_meanpool_prompt_start_seed1 | 0.0 | 0.0 |  | hard 0.0 | 16.0 | 99% |
+| qwen35_4b_searchqa_init_maxpool_prompt_start_seed1 | 68.9 | 76.8 |  | hard 73.4 | 9.5 | 1% |
 | qwen35_4b_searchqa_train_prompt_start_seed1 | 76.6 | 84.3 | 3 | e1: hard 75.0 / soft 81.6; e2: hard 78.1 / soft 84.0; e3: hard 79.7 / soft 84.3 (gate=soft) | 8.7 | 0% |
 
 ## qwen3_8b
@@ -25,6 +30,8 @@
 | Hard skill (SkillOpt artifact, text) | 71.7 | 80.8 | 0.0 ± 0.0 | 0.0 ± 0.0 | 1 / 1,2,3 |
 | Init-only p0, prompt_start | 66.9 | 75.9 | 0.0 ± 0.0 | 0.0 ± 0.0 | 1 / 1,2 |
 | Init-only p0, skill_section | 67.7 | 76.4 | 0.0 ± 0.0 | 0.0 ± 0.0 | 1 / 1,2 |
+| Init-only max-pooled p0, prompt_start | – | – | – | – | – / – |
+| Init-only mean-pooled p0, prompt_start | – | – | – | – | – / – |
 | SoftSkill, prompt_start | 74.2 ± 0.3 | 82.1 ± 0.3 | 38.2 ± 4.0 | 38.2 ± 4.0 | 1,2,3 / 1,2,3 |
 | SoftSkill, skill_section | 73.8 ± 0.4 | 81.6 ± 0.1 | 30.9 ± 7.5 | 30.9 ± 7.5 | 1,2,3 / 1,2,3 |
 

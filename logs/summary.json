@@ -1,6 +1,48 @@
 [
   {
     "model": "qwen35_4b",
+    "task": "livemath",
+    "mode": "init_maxpool",
+    "pos": "prompt_start",
+    "seed": 1,
+    "run": "qwen35_4b_livemath_init_maxpool_prompt_start_seed1",
+    "test_hard": 0.0,
+    "test_soft": 0.0,
+    "val_hard": 0.0,
+    "n_test": 124,
+    "avg_gen_tokens": 15.943548387096774,
+    "frac_hit_max_new_tokens": 0.9758064516129032
+  },
+  {
+    "model": "qwen35_4b",
+    "task": "livemath",
+    "mode": "init_meanpool",
+    "pos": "prompt_start",
+    "seed": 1,
+    "run": "qwen35_4b_livemath_init_meanpool_prompt_start_seed1",
+    "test_hard": 0.0,
+    "test_soft": 0.0,
+    "val_hard": 0.0,
+    "n_test": 124,
+    "avg_gen_tokens": 16,
+    "frac_hit_max_new_tokens": 0.9919354838709677
+  },
+  {
+    "model": "qwen35_4b",
+    "task": "searchqa",
+    "mode": "init_maxpool",
+    "pos": "prompt_start",
+    "seed": 1,
+    "run": "qwen35_4b_searchqa_init_maxpool_prompt_start_seed1",
+    "test_hard": 68.92857142857143,
+    "test_soft": 76.82007125675672,
+    "val_hard": 73.4375,
+    "n_test": 1400,
+    "avg_gen_tokens": 9.523571428571428,
+    "frac_hit_max_new_tokens": 0.0064285714285714285
+  },
+  {
+    "model": "qwen35_4b",
     "task": "searchqa",
     "mode": "train",
     "pos": "prompt_start",

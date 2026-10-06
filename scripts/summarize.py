@@ -16,14 +16,16 @@ import os
 import re
 import statistics
 
-RUN_RE = re.compile(r"^(?P<model>qwen3_8b|qwen35_4b)_(?P<task>searchqa|livemath)_(?P<mode>train|init|noskill|hard)_(?P<pos>prompt_start|skill_section)_seed(?P<seed>\d+)$")
+RUN_RE = re.compile(r"^(?P<model>qwen3_8b|qwen35_4b)_(?P<task>searchqa|livemath)_(?P<mode>train|init_maxpool|init_meanpool|init|noskill|hard)_(?P<pos>prompt_start|skill_section)_seed(?P<seed>\d+)$")
 TEST_KEYS = {  # mode -> (summary key prefix, results.jsonl relative path)
     "train": ("test", "eval/best/valid_unseen/results.jsonl"),
     "init": ("init_test", "eval/init/valid_unseen/results.jsonl"),
+    "init_maxpool": ("init_test", "eval/init/valid_unseen/results.jsonl"),
+    "init_meanpool": ("init_test", "eval/init/valid_unseen/results.jsonl"),
     "noskill": ("plain_test", "eval/plain/valid_unseen/results.jsonl"),
     "hard": ("plain_test", "eval/plain/valid_unseen/results.jsonl"),
 }
-VAL_KEYS = {"init": "init_valid_seen", "noskill": "plain_valid_seen", "hard": "plain_valid_seen"}
+VAL_KEYS = {"init": "init_valid_seen", "init_maxpool": "init_valid_seen", "init_meanpool": "init_valid_seen", "noskill": "plain_valid_seen", "hard": "plain_valid_seen"}
 MODEL_PATHS = {"qwen3_8b": "/data/models/huggingface/qwen3-8b", "qwen35_4b": "/data/models/library/Qwen3.5-4B"}
 MAX_NEW = {"searchqa": 64, "livemath": 16}
 
@@ -96,6 +98,8 @@ def main() -> None:
         ("Hard skill (SkillOpt artifact, text)", "hard", None),
         ("Init-only p0, prompt_start", "init", "prompt_start"),
         ("Init-only p0, skill_section", "init", "skill_section"),
+        ("Init-only max-pooled p0, prompt_start", "init_maxpool", "prompt_start"),
+        ("Init-only mean-pooled p0, prompt_start", "init_meanpool", "prompt_start"),
         ("SoftSkill, prompt_start", "train", "prompt_start"),
         ("SoftSkill, skill_section", "train", "skill_section"),
     ]

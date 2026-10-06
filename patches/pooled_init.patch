@@ -1,0 +1,40 @@
+diff --git a/skillopt/softprefix/model.py b/skillopt/softprefix/model.py
+--- a/skillopt/softprefix/model.py
++++ b/skillopt/softprefix/model.py
+@@ -51,6 +51,17 @@
+         prefix_embeddings.copy_(vocab_mean.unsqueeze(0).expand_as(prefix_embeddings))
+ 
+ 
++def _initialize_prefix_from_text_pool(torch, model, tokenizer, prefix_embeddings, text: str, mode: str) -> None:
++    """Initialize every prefix row from one pooled (element-wise max or mean) skill-text token embedding."""
++    input_ids = tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"]
++    if input_ids.numel() == 0:
++        raise ValueError(f"init_strategy=text_{mode}_pool requires a non-empty init_text_path document")
++    with torch.no_grad():
++        embeds = model.get_input_embeddings()(input_ids.to(prefix_embeddings.device))[0].float()
++        pooled = embeds.max(dim=0).values if mode == "max" else embeds.mean(dim=0)
++        prefix_embeddings.copy_(pooled.to(prefix_embeddings.dtype).unsqueeze(0).expand_as(prefix_embeddings))
++
++
+ def _masked_causal_lm_loss(torch, logits, labels):
+     """Compute CE only for supervised target positions, avoiding full-logit fp32 upcast."""
+     ignore_index = -100
+@@ -135,10 +146,17 @@
+                 self.initialize_from_text(init_text)
+         elif init_strategy in {"vocab_mean", "mean_vocab", "embedding_mean"}:
+             _initialize_prefix_from_vocab_mean(self.torch, self.model, self.prefix_embeddings)
++        elif init_strategy in {"text_max_pool", "text_mean_pool"}:
++            mode = "max" if init_strategy == "text_max_pool" else "mean"
++            _initialize_prefix_from_text_pool(
++                self.torch, self.model, self.tokenizer, self.prefix_embeddings, init_text, mode
++            )
+         elif init_strategy in {"random", "normal", "normal_random"}:
+             pass
+         else:
+-            raise ValueError("soft_prefix.init_strategy must be one of text, vocab_mean, or random")
++            raise ValueError(
++                "soft_prefix.init_strategy must be one of text, vocab_mean, text_max_pool, text_mean_pool, or random"
++            )
+ 
+     def trainable_parameters(self):
+         return [self.prefix_embeddings]
