@@ -12,13 +12,24 @@
 | Init-only mean-pooled p0, prompt_start | – | – | 0.0 | 0.0 | – / 1 |
 | SoftSkill, prompt_start | 76.6 | 84.3 | – | – | 1 / – |
 | SoftSkill, skill_section | – | – | – | – | – / – |
+| No skill [max_new_tokens 2048] | – | – | 7.3 | 7.3 | – / 1 |
+| Hard skill (SkillOpt artifact, text) [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only p0, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only p0, skill_section [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only max-pooled p0, prompt_start [max_new_tokens 2048] | – | – | 11.3 | 11.3 | – / 1 |
+| Init-only mean-pooled p0, prompt_start [max_new_tokens 2048] | – | – | 6.5 | 6.5 | – / 1 |
+| SoftSkill, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
+| SoftSkill, skill_section [max_new_tokens 2048] | – | – | – | – | – / – |
 
 ### Per-run
 
 | Run | test-hard | test-soft | selected epoch | val (per epoch, gate metric) | avg gen tokens | hit max_new_tokens |
 |---|---|---|---|---|---|---|
 | qwen35_4b_livemath_init_maxpool_prompt_start_seed1 | 0.0 | 0.0 |  | hard 0.0 | 15.9 | 98% |
+| qwen35_4b_livemath_init_maxpool_prompt_start_seed1_gen2048 | 11.3 | 11.3 |  | hard 11.1 | 1806.2 | 63% |
 | qwen35_4b_livemath_init_meanpool_prompt_start_seed1 | 0.0 | 0.0 |  | hard 0.0 | 16.0 | 99% |
+| qwen35_4b_livemath_init_meanpool_prompt_start_seed1_gen2048 | 6.5 | 6.5 |  | hard 11.1 | 1894.3 | 76% |
+| qwen35_4b_livemath_noskill_prompt_start_seed1_gen2048 | 7.3 | 7.3 |  | hard 16.7 | 1862.3 | 70% |
 | qwen35_4b_searchqa_init_maxpool_prompt_start_seed1 | 68.9 | 76.8 |  | hard 73.4 | 9.5 | 1% |
 | qwen35_4b_searchqa_train_prompt_start_seed1 | 76.6 | 84.3 | 3 | e1: hard 75.0 / soft 81.6; e2: hard 78.1 / soft 84.0; e3: hard 79.7 / soft 84.3 (gate=soft) | 8.7 | 0% |
 
@@ -34,6 +45,14 @@
 | Init-only mean-pooled p0, prompt_start | – | – | – | – | – / – |
 | SoftSkill, prompt_start | 74.2 ± 0.3 | 82.1 ± 0.3 | 38.2 ± 4.0 | 38.2 ± 4.0 | 1,2,3 / 1,2,3 |
 | SoftSkill, skill_section | 73.8 ± 0.4 | 81.6 ± 0.1 | 30.9 ± 7.5 | 30.9 ± 7.5 | 1,2,3 / 1,2,3 |
+| No skill [max_new_tokens 2048] | – | – | – | – | – / – |
+| Hard skill (SkillOpt artifact, text) [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only p0, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only p0, skill_section [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only max-pooled p0, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
+| Init-only mean-pooled p0, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
+| SoftSkill, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
+| SoftSkill, skill_section [max_new_tokens 2048] | – | – | – | – | – / – |
 
 ### Per-run
 

@@ -13,6 +13,8 @@
 #             noskill - plain model, no prefix, no skill text
 #             hard    - SkillOpt Markdown artifact as text in the skill section
 #   MODEL_TAG qwen3_8b | qwen35_4b
+# env RUN_TAG (optional): run-name suffix for non-upstream variants, e.g. RUN_TAG=gen2048
+#   together with soft_prefix.max_new_tokens=2048 (summarize.py reads gen<N> as the budget).
 set -euo pipefail
 
 TASK=$1; POS=$2; SEED=$3; MODE=$4; MODEL_TAG=$5; GPU=$6; shift 6
@@ -32,7 +34,7 @@ case "${TASK}" in
   *) echo "unknown task ${TASK}" >&2; exit 1 ;;
 esac
 
-RUN="${MODEL_TAG}_${TASK}_${MODE}_${POS}_seed${SEED}"
+RUN="${MODEL_TAG}_${TASK}_${MODE}_${POS}_seed${SEED}${RUN_TAG:+_${RUN_TAG}}"
 OUT="${ROOT}/results/runs/${RUN}"
 LOG="${ROOT}/results/logs/${RUN}.log"
 mkdir -p "${ROOT}/results/runs" "${ROOT}/results/logs" "${ROOT}/checkpoints" "${ROOT}/tmp"

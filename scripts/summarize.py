@@ -16,7 +16,7 @@ import os
 import re
 import statistics
 
-RUN_RE = re.compile(r"^(?P<model>qwen3_8b|qwen35_4b)_(?P<task>searchqa|livemath)_(?P<mode>train|init_maxpool|init_meanpool|init|noskill|hard)_(?P<pos>prompt_start|skill_section)_seed(?P<seed>\d+)$")
+RUN_RE = re.compile(r"^(?P<model>qwen3_8b|qwen35_4b)_(?P<task>searchqa|livemath)_(?P<mode>train|init_maxpool|init_meanpool|init|noskill|hard)_(?P<pos>prompt_start|skill_section)_seed(?P<seed>\d+)(?:_gen(?P<gen>\d+))?$")
 TEST_KEYS = {  # mode -> (summary key prefix, results.jsonl relative path)
     "train": ("test", "eval/best/valid_unseen/results.jsonl"),
     "init": ("init_test", "eval/init/valid_unseen/results.jsonl"),
@@ -62,6 +62,8 @@ def main() -> None:
             continue
         info = m.groupdict()
         info["seed"] = int(info["seed"])
+        # Runs tagged _gen<N> use a non-upstream max_new_tokens budget; report them as separate rows.
+        info["max_new"] = int(info.pop("gen") or MAX_NEW[info["task"]])
         with open(summary_path, encoding="utf-8") as f:
             summary = json.load(f)
         prefix, rel = TEST_KEYS[info["mode"]]
@@ -85,7 +87,7 @@ def main() -> None:
             tok = tokenizers.setdefault(info["model"], AutoTokenizer.from_pretrained(MODEL_PATHS[info["model"]]))
             lens = [len(tok(str(r.get("response", "")), add_special_tokens=False)["input_ids"]) for r in rows]
             rec["avg_gen_tokens"] = statistics.mean(lens)
-            rec["frac_hit_max_new_tokens"] = sum(n >= MAX_NEW[info["task"]] for n in lens) / len(lens)
+            rec["frac_hit_max_new_tokens"] = sum(n >= info["max_new"] for n in lens) / len(lens)
         runs.append(rec)
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -103,12 +105,15 @@ def main() -> None:
         ("SoftSkill, prompt_start", "train", "prompt_start"),
         ("SoftSkill, skill_section", "train", "skill_section"),
     ]
+    for gen in sorted({r["max_new"] for r in runs if r["max_new"] != MAX_NEW[r["task"]]}):
+        methods += [(f"{label} [max_new_tokens {gen}]", mode, pos, gen) for label, mode, pos in list(methods)]
     for model in sorted({r["model"] for r in runs}):
         lines += [f"## {model}", "", "| Method | SearchQA test-hard | SearchQA test-soft | LiveMath test-hard | LiveMath test-soft | seeds (SQA/LM) |", "|---|---|---|---|---|---|"]
-        for label, mode, pos in methods:
+        for label, mode, pos, *gen in methods:
             cells, seeds = [], []
             for task in ("searchqa", "livemath"):
-                sel = [r for r in runs if r["model"] == model and r["task"] == task and r["mode"] == mode and (pos is None or r["pos"] == pos)]
+                want = gen[0] if gen else MAX_NEW[task]
+                sel = [r for r in runs if r["model"] == model and r["task"] == task and r["mode"] == mode and (pos is None or r["pos"] == pos) and r["max_new"] == want]
                 cells += [fmt([r["test_hard"] for r in sel if r["test_hard"] is not None]), fmt([r["test_soft"] for r in sel if r["test_soft"] is not None])]
                 seeds.append(",".join(str(r["seed"]) for r in sorted(sel, key=lambda r: r["seed"])) or "–")
             lines.append(f"| {label} | " + " | ".join(cells) + f" | {' / '.join(seeds)} |")
