@@ -46,7 +46,7 @@
 | SoftSkill, prompt_start | 74.2 ± 0.3 | 82.1 ± 0.3 | 38.2 ± 4.0 | 38.2 ± 4.0 | 1,2,3 / 1,2,3 |
 | SoftSkill, skill_section | 73.8 ± 0.4 | 81.6 ± 0.1 | 30.9 ± 7.5 | 30.9 ± 7.5 | 1,2,3 / 1,2,3 |
 | No skill [max_new_tokens 2048] | – | – | – | – | – / – |
-| Hard skill (SkillOpt artifact, text) [max_new_tokens 2048] | – | – | – | – | – / – |
+| Hard skill (SkillOpt artifact, text) [max_new_tokens 2048] | – | – | 25.0 | 25.0 | – / 1 |
 | Init-only p0, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
 | Init-only p0, skill_section [max_new_tokens 2048] | – | – | – | – | – / – |
 | Init-only max-pooled p0, prompt_start [max_new_tokens 2048] | – | – | – | – | – / – |
@@ -59,6 +59,7 @@
 | Run | test-hard | test-soft | selected epoch | val (per epoch, gate metric) | avg gen tokens | hit max_new_tokens |
 |---|---|---|---|---|---|---|
 | qwen3_8b_livemath_hard_skill_section_seed1 | 0.0 | 0.0 |  | hard 0.0 | 16.0 | 99% |
+| qwen3_8b_livemath_hard_skill_section_seed1_gen2048 | 25.0 | 25.0 |  | hard 27.8 | 1051.2 | 1% |
 | qwen3_8b_livemath_hard_skill_section_seed2 | 0.0 | 0.0 |  | hard 0.0 | 16.0 | 99% |
 | qwen3_8b_livemath_hard_skill_section_seed3 | 0.0 | 0.0 |  | hard 0.0 | 16.0 | 99% |
 | qwen3_8b_livemath_init_prompt_start_seed1 | 0.0 | 0.0 |  | hard 0.0 | 16.0 | 99% |
