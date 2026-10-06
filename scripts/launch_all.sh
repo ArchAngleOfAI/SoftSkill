@@ -34,7 +34,8 @@ worker() {
     read -r task pos seed mode <<< "${line}"
     echo "$(date -Is) gpu=${gpu} START ${line}"
     "${REPO}/scripts/run_one.sh" "${task}" "${pos}" "${seed}" "${mode}" qwen3_8b "${gpu}" "${GC}"
-    echo "$(date -Is) gpu=${gpu} END   ${line} rc=$?"
+    local rc=$?   # capture before $(date) resets $?
+    echo "$(date -Is) gpu=${gpu} END   ${line} rc=${rc}"
     "${REPO}/scripts/mirror_logs.sh" > /dev/null 2>&1 || true
   done
 }

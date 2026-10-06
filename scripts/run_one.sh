@@ -33,7 +33,9 @@ esac
 RUN="${MODEL_TAG}_${TASK}_${MODE}_${POS}_seed${SEED}"
 OUT="${ROOT}/results/runs/${RUN}"
 LOG="${ROOT}/results/logs/${RUN}.log"
-mkdir -p "${ROOT}/results/runs" "${ROOT}/results/logs" "${ROOT}/checkpoints"
+mkdir -p "${ROOT}/results/runs" "${ROOT}/results/logs" "${ROOT}/checkpoints" "${ROOT}/tmp"
+# Keep temp files on /data: the shared root filesystem (/tmp) filled up and crashed runs.
+export TMPDIR="${ROOT}/tmp"
 if [[ -f "${OUT}/summary.json" ]]; then echo "skip ${RUN} (summary exists)"; exit 0; fi
 
 opts=(
