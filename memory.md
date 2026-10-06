@@ -4,7 +4,7 @@ Last updated: 2026-10-06 ~20:35 UTC. Project: SoftSkill (arXiv 2606.20333) repro
 Full write-up: `softskill_qwen3_report.md` (§1–7 first batch, §8 follow-up work).
 
 ## Layout
-- Repo: `/home/a84460786/SoftSkills/softskill-qwen3` (local git, no remote; `gh` not installed).
+- Repo: `/home/a84460786/SoftSkills/softskill-qwen3`; remote `origin` = https://github.com/ArchAngleOfAI/SoftSkill (branches `main` = first report, `agentic` = latest work; pushed 2026-10-06). The agent cannot push (permission check blocks it): the user runs `git push`. `credential.helper store` is set repo-locally. `gh` not installed.
 - Upstream code: `third_party/SoftSkill` submodule @ 4fc5300, patched in place by `scripts/setup_env.sh`.
 - Large files (not in git): `/data/a84460786/softskill_qwen3/{data,checkpoints,results,venv,venv_vllm,tmp}`.
 - Run outputs: `/data/.../results/runs/<run>/summary.json`; logs `/data/.../results/logs/`.
