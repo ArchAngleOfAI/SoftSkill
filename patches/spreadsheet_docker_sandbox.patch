@@ -1,0 +1,138 @@
+diff --git a/skillopt/envs/spreadsheetbench/executor.py b/skillopt/envs/spreadsheetbench/executor.py
+index 24421f9..f816579 100644
+--- a/skillopt/envs/spreadsheetbench/executor.py
++++ b/skillopt/envs/spreadsheetbench/executor.py
+@@ -34,8 +34,62 @@ def _strip_path_assignments(code: str) -> str:
+     return _PATH_ASSIGN_RE.sub("", code)
+ 
+ 
++# Optional Docker sandbox for model-generated code. Set SOFTSKILL_SHEET_SANDBOX_IMAGE to an
++# image name to enable it; when unset, code runs on the host exactly as upstream does.
++SANDBOX_IMAGE_ENV = "SOFTSKILL_SHEET_SANDBOX_IMAGE"
++_TIMEOUT_EXIT = 124  # coreutils `timeout` exit status when the limit is hit
++
++
++def sandbox_image() -> str:
++    return os.environ.get(SANDBOX_IMAGE_ENV, "").strip()
++
++
++def run_in_sandbox(
++    argv: list[str],
++    *,
++    cwd: str,
++    ro_paths: list[str] = (),
++    rw_dirs: list[str] = (),
++    timeout: int | None = None,
++) -> subprocess.CompletedProcess:
++    """Run argv in a throwaway container: no network, read-only root, capped memory/CPU/PIDs.
++
++    Host paths are mounted at the same absolute paths, so generated code sees the paths it
++    was given. Exit status 124 means the in-container time limit was hit.
++    """
++    import uuid
++
++    name = f"softskill-sheet-{uuid.uuid4().hex[:12]}"
++    cmd = [
++        "docker", "run", "--rm", "--name", name,
++        "--network", "none",
++        "--user", f"{os.getuid()}:{os.getgid()}",
++        "--memory", "4g", "--memory-swap", "4g", "--cpus", "2", "--pids-limit", "256",
++        "--read-only", "--tmpfs", "/tmp:rw,size=512m",
++        "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
++        "-e", "HOME=/tmp", "-e", "MPLCONFIGDIR=/tmp",
++    ]
++    rw = {os.path.realpath(d) for d in rw_dirs}
++    for path in sorted({os.path.realpath(p) for p in ro_paths} - rw):
++        cmd += ["-v", f"{path}:{path}:ro"]
++    for path in sorted(rw):
++        cmd += ["-v", f"{path}:{path}:rw"]
++    cmd += ["-w", os.path.realpath(cwd), sandbox_image()]
++    if timeout and timeout > 0:
++        cmd += ["timeout", "-k", "5", str(int(timeout))]
++    cmd += list(argv)
++    try:
++        # Host-side limit is a backstop; the in-container `timeout` normally fires first.
++        return subprocess.run(cmd, capture_output=True, text=True, timeout=(timeout + 60) if timeout and timeout > 0 else None)
++    except subprocess.TimeoutExpired:
++        subprocess.run(["docker", "kill", name], capture_output=True)
++        raise
++
++
+ def run_generated_code(code: str, input_path: str, output_path: str, timeout: int | None = 120) -> tuple[bool, str]:
+     os.makedirs(os.path.dirname(output_path), exist_ok=True)
++    if sandbox_image():
++        input_path, output_path = os.path.abspath(input_path), os.path.abspath(output_path)
+     cleaned = _strip_path_assignments(code)
+     indented = textwrap.indent(cleaned, "    ")
+     script = RUNNER_TEMPLATE.format(
+@@ -47,12 +101,24 @@ def run_generated_code(code: str, input_path: str, output_path: str, timeout: in
+         f.write(script)
+         tmp = f.name
+     try:
+-        proc = subprocess.run(
+-            [sys.executable, tmp],
+-            capture_output=True,
+-            text=True,
+-            timeout=timeout if timeout and timeout > 0 else None,
+-        )
++        if sandbox_image():
++            out_dir = os.path.dirname(output_path)
++            proc = run_in_sandbox(
++                ["python", tmp],
++                cwd=out_dir,
++                ro_paths=[tmp, input_path],
++                rw_dirs=[out_dir],
++                timeout=timeout,
++            )
++            if timeout and timeout > 0 and proc.returncode == _TIMEOUT_EXIT:
++                return False, f"timeout after {timeout}s"
++        else:
++            proc = subprocess.run(
++                [sys.executable, tmp],
++                capture_output=True,
++                text=True,
++                timeout=timeout if timeout and timeout > 0 else None,
++            )
+         if proc.returncode != 0:
+             return False, (proc.stdout + "\n" + proc.stderr).strip()
+         if not os.path.exists(output_path):
+diff --git a/skillopt/envs/spreadsheetbench/react_agent.py b/skillopt/envs/spreadsheetbench/react_agent.py
+index 2e72953..bd0441e 100644
+--- a/skillopt/envs/spreadsheetbench/react_agent.py
++++ b/skillopt/envs/spreadsheetbench/react_agent.py
+@@ -11,6 +11,7 @@ import json
+ import os
+ import subprocess
+ 
++from skillopt.envs.spreadsheetbench.executor import run_in_sandbox, sandbox_image
+ from skillopt.model import chat_target_messages
+ from skillopt.prompts import load_prompt
+ 
+@@ -252,14 +253,19 @@ def _auto_verify(work_dir: str) -> str:
+ 
+ def _run_bash(cmd: str, work_dir: str, timeout: int = 60) -> str:
+     try:
+-        proc = subprocess.run(
+-            cmd,
+-            shell=True,
+-            capture_output=True,
+-            text=True,
+-            timeout=timeout,
+-            cwd=work_dir,
+-        )
++        if sandbox_image():
++            proc = run_in_sandbox(["sh", "-c", cmd], cwd=work_dir, rw_dirs=[work_dir], timeout=timeout)
++            if proc.returncode == 124:
++                return f"[timeout after {timeout}s]"
++        else:
++            proc = subprocess.run(
++                cmd,
++                shell=True,
++                capture_output=True,
++                text=True,
++                timeout=timeout,
++                cwd=work_dir,
++            )
+         out = (proc.stdout + proc.stderr).strip()
+     except subprocess.TimeoutExpired:
+         return f"[timeout after {timeout}s]"
