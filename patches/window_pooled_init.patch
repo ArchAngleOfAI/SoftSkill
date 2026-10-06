@@ -1,0 +1,172 @@
+diff --git a/skillopt/softprefix/model.py b/skillopt/softprefix/model.py
+index f041d2f..a5c5a59 100644
+--- a/skillopt/softprefix/model.py
++++ b/skillopt/softprefix/model.py
+@@ -62,6 +62,44 @@ def _initialize_prefix_from_text_pool(torch, model, tokenizer, prefix_embeddings
+         prefix_embeddings.copy_(pooled.to(prefix_embeddings.dtype).unsqueeze(0).expand_as(prefix_embeddings))
+ 
+ 
++def _validate_pool_window(window: int, stride: int) -> tuple[int, int]:
++    """Return (window, stride); stride defaults to the window (no overlap)."""
++    window = int(window)
++    stride = int(stride) or window
++    if window <= 0 or not 0 < stride <= window:
++        raise ValueError(
++            "init_strategy=text_mean_pool_window requires soft_prefix.init_pool_window > 0 and "
++            f"0 < init_pool_stride <= init_pool_window (got window={window}, stride={stride})"
++        )
++    return window, stride
++
++
++def text_window_pool_starts(n_tokens: int, window: int, stride: int) -> list[int]:
++    """Start offsets of `window`-token windows taken every `stride` tokens; the last window may be shorter."""
++    if n_tokens <= window:
++        return [0]
++    return list(range(0, n_tokens - window + stride, stride))
++
++
++def _initialize_prefix_from_text_window_pool(
++    torch, model, tokenizer, prefix_embeddings, text: str, window: int, stride: int
++) -> None:
++    """Initialize prefix row i as the mean of the skill-text token embeddings in window i (overlapping if stride < window)."""
++    input_ids = tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"]
++    if input_ids.numel() == 0:
++        raise ValueError("init_strategy=text_mean_pool_window requires a non-empty init_text_path document")
++    starts = text_window_pool_starts(input_ids.shape[1], window, stride)
++    if len(starts) != prefix_embeddings.shape[0]:
++        raise ValueError(
++            f"init_strategy=text_mean_pool_window gives {len(starts)} rows for {input_ids.shape[1]} tokens "
++            f"(window={window}, stride={stride}); set soft_prefix.prefix_length to auto or {len(starts)}"
++        )
++    with torch.no_grad():
++        embeds = model.get_input_embeddings()(input_ids.to(prefix_embeddings.device))[0].float()
++        pooled = torch.stack([embeds[start : start + window].mean(dim=0) for start in starts])
++        prefix_embeddings.copy_(pooled.to(prefix_embeddings.dtype))
++
++
+ def _masked_causal_lm_loss(torch, logits, labels):
+     """Compute CE only for supervised target positions, avoiding full-logit fp32 upcast."""
+     ignore_index = -100
+@@ -88,6 +126,8 @@ class SoftPrefixCausalLM:
+         device: str = "auto",
+         trust_remote_code: bool = False,
+         gradient_checkpointing: bool = False,
++        init_pool_window: int = 0,
++        init_pool_stride: int = 0,
+     ) -> None:
+         torch, AutoModelForCausalLM, AutoTokenizer = _import_torch_and_transformers()
+         self.torch = torch
+@@ -151,11 +191,17 @@ class SoftPrefixCausalLM:
+             _initialize_prefix_from_text_pool(
+                 self.torch, self.model, self.tokenizer, self.prefix_embeddings, init_text, mode
+             )
++        elif init_strategy == "text_mean_pool_window":
++            window, stride = _validate_pool_window(init_pool_window, init_pool_stride)
++            _initialize_prefix_from_text_window_pool(
++                self.torch, self.model, self.tokenizer, self.prefix_embeddings, init_text, window, stride
++            )
+         elif init_strategy in {"random", "normal", "normal_random"}:
+             pass
+         else:
+             raise ValueError(
+-                "soft_prefix.init_strategy must be one of text, vocab_mean, text_max_pool, text_mean_pool, or random"
++                "soft_prefix.init_strategy must be one of text, vocab_mean, text_max_pool, text_mean_pool, "
++                "text_mean_pool_window, or random"
+             )
+ 
+     def trainable_parameters(self):
+diff --git a/skillopt/softprefix/trainer.py b/skillopt/softprefix/trainer.py
+index c623fd9..2bac98a 100644
+--- a/skillopt/softprefix/trainer.py
++++ b/skillopt/softprefix/trainer.py
+@@ -88,7 +88,13 @@ from skillopt.softprefix.data import (
+     normalize_prefix_injection_position,
+ )
+ from skillopt.softprefix.lora import LoraCausalLM, LoraSettings, LoraVisionLM
+-from skillopt.softprefix.model import SoftPrefixCausalLM, SoftPrefixVisionLM, _import_torch_and_transformers
++from skillopt.softprefix.model import (
++    SoftPrefixCausalLM,
++    SoftPrefixVisionLM,
++    _import_torch_and_transformers,
++    _validate_pool_window,
++    text_window_pool_starts,
++)
+ from skillopt.utils import compute_score
+ 
+ 
+@@ -156,6 +162,8 @@ class SoftPrefixSettings:
+     inference_timeout_seconds: float = 300.0
+     injection_position: str = "prompt_start"
+     gradient_checkpointing: bool = False
++    init_pool_window: int = 0
++    init_pool_stride: int = 0
+ 
+     @classmethod
+     def from_dict(cls, cfg: dict[str, Any]) -> "SoftPrefixSettings":
+@@ -205,6 +213,8 @@ class SoftPrefixSettings:
+                 cfg.get("injection_position", "prompt_start")
+             ),
+             gradient_checkpointing=_parse_bool(cfg.get("gradient_checkpointing", False)),
++            init_pool_window=int(cfg.get("init_pool_window", 0) or 0),
++            init_pool_stride=int(cfg.get("init_pool_stride", 0) or 0),
+         )
+ 
+ 
+@@ -356,8 +366,19 @@ def _resolve_alfworld_rollout_max_completion_tokens(
+     return min(base, int(target_cap))
+ 
+ 
+-def _resolve_auto_prefix_length(model_name: str, init_text: str, trust_remote_code: bool) -> int:
+-    """Count the tokens in *init_text* using the model tokenizer and return that count."""
++def _resolve_auto_prefix_length(
++    model_name: str,
++    init_text: str,
++    trust_remote_code: bool,
++    *,
++    init_strategy: str = "text",
++    init_pool_window: int = 0,
++    init_pool_stride: int = 0,
++) -> int:
++    """Count the tokens in *init_text* using the model tokenizer and return that count.
++
++    With init_strategy=text_mean_pool_window, return the number of pooled windows instead.
++    """
+     _, _, AutoTokenizer = _import_torch_and_transformers()
+     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=trust_remote_code)
+     ids = tokenizer(init_text, add_special_tokens=False)["input_ids"]
+@@ -366,6 +387,9 @@ def _resolve_auto_prefix_length(model_name: str, init_text: str, trust_remote_co
+         raise ValueError(
+             "prefix_length: auto requires a non-empty init_text_path document to count tokens from"
+         )
++    if init_strategy.strip().lower() == "text_mean_pool_window":
++        window, stride = _validate_pool_window(init_pool_window, init_pool_stride)
++        return len(text_window_pool_starts(n, window, stride))
+     return n
+ 
+ 
+@@ -2580,6 +2604,11 @@ def _build_prefix_model(env: str, settings: SoftPrefixSettings, init_text: str)
+         if use_vision_model:
+             raise ValueError("soft_prefix.gradient_checkpointing is only implemented for the causal_lm wrapper")
+         extra_kwargs["gradient_checkpointing"] = True
++    if settings.init_strategy.strip().lower() == "text_mean_pool_window":
++        if use_vision_model:
++            raise ValueError("init_strategy=text_mean_pool_window is only implemented for the causal_lm wrapper")
++        extra_kwargs["init_pool_window"] = settings.init_pool_window
++        extra_kwargs["init_pool_stride"] = settings.init_pool_stride
+     return model_cls(
+         settings.model_name,
+         prefix_length=settings.prefix_length,
+@@ -3244,7 +3273,12 @@ def train_soft_prefix(
+     init_text = _load_init_text(settings.init_text_path or str(cfg.get("skill_init", "")))
+     if settings.prefix_length == 0:
+         settings.prefix_length = _resolve_auto_prefix_length(
+-            settings.model_name, init_text, settings.trust_remote_code
++            settings.model_name,
++            init_text,
++            settings.trust_remote_code,
++            init_strategy=settings.init_strategy,
++            init_pool_window=settings.init_pool_window,
++            init_pool_stride=settings.init_pool_stride,
+         )
+         print(f"  [soft-prefix] using auto-prefix length {settings.prefix_length}", flush=True)
+     prefix_model = _build_prefix_model(env, settings, init_text)

@@ -208,3 +208,87 @@ scripts/mirror_logs.sh          # refresh logs/ and logs/summary.{json,md}
 
 Jobs whose `summary.json` already exists are skipped, so re-running `launch_all.sh` with a new queue
 file only runs what's missing.
+
+## 8. Follow-up work after the first report (2026-10-06, 14:12 → 20:10 UTC)
+
+Status at 20:32 UTC: all queued runs are finished; seeds 1–3 are complete for every
+Qwen3-8B LiveMath 2048-token condition below. Commits `0a29aa3` → `d57d941`, plus uncommitted work listed in §8.5.
+
+### 8.1 What changed
+
+| Change | Where | Status |
+|---|---|---|
+| Docker sandbox for model-generated SpreadsheetBench code and ReAct shell commands (opt-in via `SOFTSKILL_SHEET_SANDBOX_IMAGE`; no network, read-only root, 4 GB / 2 CPU / 256 PIDs, in-container timeout). Outputs checked identical to host execution. | `patches/spreadsheet_docker_sandbox.patch`, `docker/spreadsheet_sandbox/Dockerfile` | committed |
+| `setup_env.sh` applies all patches, installs ALFWorld, a separate vLLM 0.31.0 venv, and builds the sandbox image | `scripts/setup_env.sh` | committed |
+| New untrained initializations: `text_max_pool` / `text_mean_pool` (one pooled skill-token embedding, tiled to 32) | `patches/pooled_init.patch`, `run_one.sh` modes `init_maxpool` / `init_meanpool` | committed |
+| `RUN_TAG` run-name suffix; `_gen<N>` runs reported as separate rows with their own budget | `run_one.sh`, `summarize.py` | committed |
+| Windowed mean-pool init `text_mean_pool_window` (row *i* = mean of skill tokens in window *i*; window 8, stride 6; prefix length = number of windows) | submodule `model.py` / `trainer.py`, `run_one.sh` mode `init_winpool` | **uncommitted, no patch file yet** |
+| Lenient LiveMath score: an untagged answer whose last `\boxed{}` holds one choice letter is scored on that letter (long-budget runs only, strict score still reported) | `summarize.py` | uncommitted |
+| LiveMath long-budget queues (vLLM prompt-embeds server, `max_new_tokens=2048`, seeds 1–3); server now started with `setsid` and its whole process group killed on exit | `scripts/launch_livemath_winpool.sh`, `scripts/launch_livemath_hard_gen2048.sh` | uncommitted, finished |
+
+### 8.2 Agentic smoke tests (Qwen3-8B, no skill, 3 train tasks each)
+
+| Env | Result | Notes |
+|---|---|---|
+| ALFWorld | 0/3, all hit the 50-step limit (84 s wall) | Model loops on an inadmissible action (`look at alarmclock 3` × 40+). |
+| SpreadsheetBench | 0/3 (563 s wall) | Code ran in the sandbox every time (3/3); failures are wrong values (time formatted as string, missing cell, 0 vs 8000). |
+
+Training-step cost for agentic-length sequences (Qwen3-8B, batch 1, 40 GB A100):
+2.3 / 4.6 / 9.9 s per step at 2k / 4k / 8k tokens with a 32-token prefix (peak 19–32 GiB);
+5.2 / 7.8 / 13.4 s with a 2,705-token prefix. 16k tokens or batch 2 at 8k runs out of memory.
+Full trajectories: `logs/agentic/smoke_trajectories.md`.
+
+### 8.3 Pooled initializations, upstream 16-token budget (Qwen3.5-4B, prompt_start, seed 1)
+
+| | SearchQA test-hard (soft) | LiveMath |
+|---|---|---|
+| Max-pooled p0, untrained | 68.9 (76.8) | 0.0 (98% cut off) |
+| Mean-pooled p0, untrained | – | 0.0 (99% cut off) |
+| Reference: trained SoftSkill (§2) | 76.6 (84.3) | – |
+| Reference: paper no-skill | 68.1 | 22.4 |
+
+Max-pooling gives roughly no-skill performance on SearchQA, same as the tiled p0 on Qwen3-8B (§4).
+
+### 8.4 LiveMath with `max_new_tokens=2048` (fix for §6 item 1)
+
+Test accuracy (%), mean ± std over seeds 1–3, strict upstream scorer; lenient `\boxed{}` score in parentheses. 124 items, so
+±4 points is sampling noise.
+
+| Qwen3-8B | Seed 1 | Seed 2 | Seed 3 | Mean | Avg gen tokens |
+|---|---|---|---|---|---|
+| No skill | 18.5 (26.6) | 21.8 (27.4) | 19.4 (25.8) | 19.9 ± 1.7 (26.6) | ~1,130 |
+| Hard skill (SkillOpt text) | 25.0 (32.3) | 25.8 (35.5) | 27.4 (35.5) | **26.1 ± 1.2 (34.4)** | ~1,040 |
+| Windowed mean-pool p0, untrained, prompt_start | 15.3 | 19.4 | 19.4 | 18.0 ± 2.3 | ~57 |
+| Windowed mean-pool p0, untrained, skill_section | 16.9 (21.8) | 27.4 (30.6) | 26.6 (32.3) | 23.7 ± 5.8 (28.2) | ~1,085 |
+| Trained SoftSkill | not run at 2048 | | | | |
+| *Reference: trained SoftSkill at 16 tokens (§3)* | 36.3 | 35.5 | 42.7 | *38.2* | ~6 |
+
+| Qwen3.5-4B, seed 1 | Test | Avg gen tokens / cut off |
+|---|---|---|
+| No skill | 7.3 | 1,862 / 70% |
+| Max-pooled p0 | 11.3 | 1,806 / 63% |
+| Mean-pooled p0 | 6.5 | 1,894 / 76% |
+
+Findings:
+- With room to reason, the Qwen3-8B baselines are no longer 0. The 16-token zeros in §3 were a
+  truncation artifact, as suspected.
+- Ordering with 3 seeds each: **hard skill 26.1 > untrained p0 at skill_section 23.7 > no skill 19.9 >
+  untrained p0 at prompt_start 18.0** (lenient: 34.4 > 28.2 > 26.6 > 18.0).
+- The hard skill beats no skill on every seed (+6.2 strict, +7.8 lenient, both larger than the seed
+  spread), which matches the paper's text-skill > no-skill ordering.
+- **Untrained** windowed-pool p0 gives no reliable gain over no skill. At prompt_start it is slightly
+  worse on every seed: the prefix makes the model answer after ~57 tokens instead of reasoning
+  (~1,100). At skill_section it is +3.8 on average but swings from 16.9 to 27.4 between seeds.
+- **Trained** SoftSkill has not been evaluated at 2048 tokens yet. At 16 tokens it scores 38.2,
+  above every long-budget condition here, including the hard skill with ~1,000 reasoning tokens.
+  The budgets differ, so this is suggestive, not a controlled comparison.
+- Qwen3.5-4B still hits the 2048 cap on 63–76% of items, so its long-budget numbers stay
+  truncation-limited and do not match the paper's 22.4 no-skill score.
+
+### 8.5 Open items
+
+1. Commit the windowed mean-pool code as a patch file (`patches/`) — it currently lives only as an
+   uncommitted diff inside the submodule, so `setup_env.sh` would not reproduce it.
+2. Done: all seeds finished and `logs/` mirrored (20:32 UTC). Kill the orphaned vLLM engine left on GPU 2 by the first LiveMath launcher (PID 1459446); both launchers are fixed.
+3. Evaluate the trained SoftSkill checkpoints at `max_new_tokens=2048` to get a controlled LiveMath comparison.
+4. Agentic tasks: no-skill baselines are 0/3 on both envs; skill training on them not started.

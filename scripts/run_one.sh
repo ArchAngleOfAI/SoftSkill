@@ -10,6 +10,10 @@
 #             init    - init-only: p0 inserted, no training (num_epochs=0)
 #             init_maxpool / init_meanpool - init-only with p0 = element-wise max / mean of the NL
 #                       skill's token embeddings, tiled to the prefix length (patches/pooled_init.patch)
+#             init_winpool - init-only with p0 row i = mean of the NL skill's token embeddings in
+#                       window i (POOL_WINDOW tokens every POOL_STRIDE tokens; defaults 8 / 6, i.e. 2 tokens
+#                       overlap). Prefix length = number of windows (prefix_length: auto), no padding.
+#                       The run name carries the window as init_winpool_w<W>s<S>.
 #             noskill - plain model, no prefix, no skill text
 #             hard    - SkillOpt Markdown artifact as text in the skill section
 #   MODEL_TAG qwen3_8b | qwen35_4b
@@ -34,6 +38,10 @@ case "${TASK}" in
   *) echo "unknown task ${TASK}" >&2; exit 1 ;;
 esac
 
+if [[ "${MODE}" == init_winpool ]]; then
+  POOL_WINDOW="${POOL_WINDOW:-8}"; POOL_STRIDE="${POOL_STRIDE:-6}"
+  MODE="init_winpool_w${POOL_WINDOW}s${POOL_STRIDE}"
+fi
 RUN="${MODEL_TAG}_${TASK}_${MODE}_${POS}_seed${SEED}${RUN_TAG:+_${RUN_TAG}}"
 OUT="${ROOT}/results/runs/${RUN}"
 LOG="${ROOT}/results/logs/${RUN}.log"
@@ -53,6 +61,9 @@ case "${MODE}" in
   init)    opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true) ;;
   init_maxpool)  opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true soft_prefix.init_strategy=text_max_pool) ;;
   init_meanpool) opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true soft_prefix.init_strategy=text_mean_pool) ;;
+  init_winpool_w*) opts+=(train.num_epochs=0 soft_prefix.eval_init_prefix=true soft_prefix.eval_init_val=true
+    soft_prefix.init_strategy=text_mean_pool_window soft_prefix.init_pool_window="${POOL_WINDOW}"
+    soft_prefix.init_pool_stride="${POOL_STRIDE}" soft_prefix.prefix_length=auto) ;;
   noskill) opts+=(train.num_epochs=0 soft_prefix.eval_plain_baseline=true) ;;
   hard)
     # Same harness as noskill, but the prompt builders render the SkillOpt

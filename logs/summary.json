@@ -27,7 +27,8 @@
     "val_hard": 11.11111111111111,
     "n_test": 124,
     "avg_gen_tokens": 1806.2096774193549,
-    "frac_hit_max_new_tokens": 0.6290322580645161
+    "frac_hit_max_new_tokens": 0.6290322580645161,
+    "test_hard_lenient": 11.29032258064516
   },
   {
     "model": "qwen35_4b",
@@ -57,7 +58,8 @@
     "val_hard": 11.11111111111111,
     "n_test": 124,
     "avg_gen_tokens": 1894.258064516129,
-    "frac_hit_max_new_tokens": 0.7580645161290323
+    "frac_hit_max_new_tokens": 0.7580645161290323,
+    "test_hard_lenient": 6.451612903225806
   },
   {
     "model": "qwen35_4b",
@@ -72,7 +74,8 @@
     "val_hard": 16.666666666666664,
     "n_test": 124,
     "avg_gen_tokens": 1862.3064516129032,
-    "frac_hit_max_new_tokens": 0.7016129032258065
+    "frac_hit_max_new_tokens": 0.7016129032258065,
+    "test_hard_lenient": 7.258064516129033
   },
   {
     "model": "qwen35_4b",
@@ -161,7 +164,8 @@
     "val_hard": 27.77777777777778,
     "n_test": 124,
     "avg_gen_tokens": 1051.241935483871,
-    "frac_hit_max_new_tokens": 0.008064516129032258
+    "frac_hit_max_new_tokens": 0.008064516129032258,
+    "test_hard_lenient": 32.25806451612903
   },
   {
     "model": "qwen3_8b",
@@ -183,6 +187,22 @@
     "task": "livemath",
     "mode": "hard",
     "pos": "skill_section",
+    "seed": 2,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_hard_skill_section_seed2_gen2048",
+    "test_hard": 25.806451612903224,
+    "test_soft": 25.806451612903224,
+    "val_hard": 22.22222222222222,
+    "n_test": 124,
+    "avg_gen_tokens": 1041.7096774193549,
+    "frac_hit_max_new_tokens": 0.0,
+    "test_hard_lenient": 35.483870967741936
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "hard",
+    "pos": "skill_section",
     "seed": 3,
     "max_new": 16,
     "run": "qwen3_8b_livemath_hard_skill_section_seed3",
@@ -192,6 +212,22 @@
     "n_test": 124,
     "avg_gen_tokens": 15.991935483870968,
     "frac_hit_max_new_tokens": 0.9919354838709677
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "hard",
+    "pos": "skill_section",
+    "seed": 3,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_hard_skill_section_seed3_gen2048",
+    "test_hard": 27.419354838709676,
+    "test_soft": 27.419354838709676,
+    "val_hard": 33.33333333333333,
+    "n_test": 124,
+    "avg_gen_tokens": 1028.516129032258,
+    "frac_hit_max_new_tokens": 0.0,
+    "test_hard_lenient": 35.483870967741936
   },
   {
     "model": "qwen3_8b",
@@ -256,6 +292,102 @@
   {
     "model": "qwen3_8b",
     "task": "livemath",
+    "mode": "init_winpool_w8s6",
+    "pos": "prompt_start",
+    "seed": 1,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_init_winpool_w8s6_prompt_start_seed1_gen2048",
+    "test_hard": 15.32258064516129,
+    "test_soft": 15.32258064516129,
+    "val_hard": 16.666666666666664,
+    "n_test": 124,
+    "avg_gen_tokens": 55.403225806451616,
+    "frac_hit_max_new_tokens": 0.024193548387096774,
+    "test_hard_lenient": 15.32258064516129
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "init_winpool_w8s6",
+    "pos": "prompt_start",
+    "seed": 2,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_init_winpool_w8s6_prompt_start_seed2_gen2048",
+    "test_hard": 19.35483870967742,
+    "test_soft": 19.35483870967742,
+    "val_hard": 16.666666666666664,
+    "n_test": 124,
+    "avg_gen_tokens": 55.41129032258065,
+    "frac_hit_max_new_tokens": 0.024193548387096774,
+    "test_hard_lenient": 19.35483870967742
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "init_winpool_w8s6",
+    "pos": "prompt_start",
+    "seed": 3,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_init_winpool_w8s6_prompt_start_seed3_gen2048",
+    "test_hard": 19.35483870967742,
+    "test_soft": 19.35483870967742,
+    "val_hard": 16.666666666666664,
+    "n_test": 124,
+    "avg_gen_tokens": 59.82258064516129,
+    "frac_hit_max_new_tokens": 0.024193548387096774,
+    "test_hard_lenient": 19.35483870967742
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "init_winpool_w8s6",
+    "pos": "skill_section",
+    "seed": 1,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_init_winpool_w8s6_skill_section_seed1_gen2048",
+    "test_hard": 16.93548387096774,
+    "test_soft": 16.93548387096774,
+    "val_hard": 11.11111111111111,
+    "n_test": 124,
+    "avg_gen_tokens": 1075.1209677419354,
+    "frac_hit_max_new_tokens": 0.008064516129032258,
+    "test_hard_lenient": 21.774193548387096
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "init_winpool_w8s6",
+    "pos": "skill_section",
+    "seed": 2,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_init_winpool_w8s6_skill_section_seed2_gen2048",
+    "test_hard": 27.419354838709676,
+    "test_soft": 27.419354838709676,
+    "val_hard": 16.666666666666664,
+    "n_test": 124,
+    "avg_gen_tokens": 1094.6854838709678,
+    "frac_hit_max_new_tokens": 0.024193548387096774,
+    "test_hard_lenient": 30.64516129032258
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "init_winpool_w8s6",
+    "pos": "skill_section",
+    "seed": 3,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_init_winpool_w8s6_skill_section_seed3_gen2048",
+    "test_hard": 26.61290322580645,
+    "test_soft": 26.61290322580645,
+    "val_hard": 16.666666666666664,
+    "n_test": 124,
+    "avg_gen_tokens": 1080.217741935484,
+    "frac_hit_max_new_tokens": 0.008064516129032258,
+    "test_hard_lenient": 32.25806451612903
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
     "mode": "noskill",
     "pos": "prompt_start",
     "seed": 1,
@@ -267,6 +399,22 @@
     "n_test": 124,
     "avg_gen_tokens": 15.991935483870968,
     "frac_hit_max_new_tokens": 0.9919354838709677
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "noskill",
+    "pos": "prompt_start",
+    "seed": 1,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_noskill_prompt_start_seed1_gen2048",
+    "test_hard": 18.548387096774192,
+    "test_soft": 18.548387096774192,
+    "val_hard": 11.11111111111111,
+    "n_test": 124,
+    "avg_gen_tokens": 1141.3951612903227,
+    "frac_hit_max_new_tokens": 0.024193548387096774,
+    "test_hard_lenient": 26.61290322580645
   },
   {
     "model": "qwen3_8b",
@@ -288,6 +436,22 @@
     "task": "livemath",
     "mode": "noskill",
     "pos": "prompt_start",
+    "seed": 2,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_noskill_prompt_start_seed2_gen2048",
+    "test_hard": 21.774193548387096,
+    "test_soft": 21.774193548387096,
+    "val_hard": 11.11111111111111,
+    "n_test": 124,
+    "avg_gen_tokens": 1138.3870967741937,
+    "frac_hit_max_new_tokens": 0.04032258064516129,
+    "test_hard_lenient": 27.419354838709676
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "noskill",
+    "pos": "prompt_start",
     "seed": 3,
     "max_new": 16,
     "run": "qwen3_8b_livemath_noskill_prompt_start_seed3",
@@ -297,6 +461,22 @@
     "n_test": 124,
     "avg_gen_tokens": 15.983870967741936,
     "frac_hit_max_new_tokens": 0.9838709677419355
+  },
+  {
+    "model": "qwen3_8b",
+    "task": "livemath",
+    "mode": "noskill",
+    "pos": "prompt_start",
+    "seed": 3,
+    "max_new": 2048,
+    "run": "qwen3_8b_livemath_noskill_prompt_start_seed3_gen2048",
+    "test_hard": 19.35483870967742,
+    "test_soft": 19.35483870967742,
+    "val_hard": 16.666666666666664,
+    "n_test": 124,
+    "avg_gen_tokens": 1099.8145161290322,
+    "frac_hit_max_new_tokens": 0.016129032258064516,
+    "test_hard_lenient": 25.806451612903224
   },
   {
     "model": "qwen3_8b",

@@ -16,7 +16,7 @@ import os
 import re
 import statistics
 
-RUN_RE = re.compile(r"^(?P<model>qwen3_8b|qwen35_4b)_(?P<task>searchqa|livemath)_(?P<mode>train|init_maxpool|init_meanpool|init|noskill|hard)_(?P<pos>prompt_start|skill_section)_seed(?P<seed>\d+)(?:_gen(?P<gen>\d+))?$")
+RUN_RE = re.compile(r"^(?P<model>qwen3_8b|qwen35_4b)_(?P<task>searchqa|livemath)_(?P<mode>train|init_winpool_w\d+s\d+|init_maxpool|init_meanpool|init|noskill|hard)_(?P<pos>prompt_start|skill_section)_seed(?P<seed>\d+)(?:_gen(?P<gen>\d+))?$")
 TEST_KEYS = {  # mode -> (summary key prefix, results.jsonl relative path)
     "train": ("test", "eval/best/valid_unseen/results.jsonl"),
     "init": ("init_test", "eval/init/valid_unseen/results.jsonl"),
@@ -28,6 +28,34 @@ TEST_KEYS = {  # mode -> (summary key prefix, results.jsonl relative path)
 VAL_KEYS = {"init": "init_valid_seen", "init_maxpool": "init_valid_seen", "init_meanpool": "init_valid_seen", "noskill": "plain_valid_seen", "hard": "plain_valid_seen"}
 MODEL_PATHS = {"qwen3_8b": "/data/models/huggingface/qwen3-8b", "qwen35_4b": "/data/models/library/Qwen3.5-4B"}
 MAX_NEW = {"searchqa": 64, "livemath": 16}
+
+
+def last_boxed(text: str) -> str | None:
+    """Content of the last \\boxed{...} in *text* (brace-balanced), or None."""
+    start = text.rfind("\\boxed{")
+    if start < 0:
+        return None
+    i, depth = start + len("\\boxed{"), 1
+    for j in range(i, len(text)):
+        depth += {"{": 1, "}": -1}.get(text[j], 0)
+        if depth == 0:
+            return text[i:j]
+    return None
+
+
+def lenient_livemath_correct(row: dict) -> float:
+    """Upstream score, except an untagged answer whose last \\boxed{} holds a single choice letter
+    (e.g. \\boxed{B}, \\boxed{\\text{B}}, \\boxed{(B)}) is scored on that letter."""
+    response = str(row.get("response", ""))
+    if re.search(r"<answer>.*?</answer>", response, re.DOTALL | re.IGNORECASE):
+        return float(row["hard"])
+    boxed = last_boxed(response)
+    if boxed is None:
+        return float(row["hard"])
+    letter = re.sub(r"\\[a-zA-Z]+|[{}()$\s.:]", "", boxed).upper()
+    if not re.fullmatch(r"[A-Z]", letter):
+        return float(row["hard"])
+    return float(letter == str(row.get("correct_label", "")).strip().upper())
 
 
 def load_jsonl(path: str) -> list[dict]:
@@ -66,7 +94,8 @@ def main() -> None:
         info["max_new"] = int(info.pop("gen") or MAX_NEW[info["task"]])
         with open(summary_path, encoding="utf-8") as f:
             summary = json.load(f)
-        prefix, rel = TEST_KEYS[info["mode"]]
+        # Windowed mean-pool runs (init_winpool_w<W>s<S>) are init-only and share the init outputs.
+        prefix, rel = TEST_KEYS["init" if info["mode"].startswith("init_winpool") else info["mode"]]
         rec = dict(info, run=os.path.basename(run_dir))
         rec["test_hard"] = 100 * summary[f"{prefix}_hard"] if summary.get(f"{prefix}_hard") is not None else None
         rec["test_soft"] = 100 * summary[f"{prefix}_soft"] if summary.get(f"{prefix}_soft") is not None else None
@@ -79,7 +108,7 @@ def main() -> None:
                 for h in hist
             ]
         else:
-            key = VAL_KEYS[info["mode"]]
+            key = VAL_KEYS.get(info["mode"], "init_valid_seen")
             rec["val_hard"] = 100 * summary[f"{key}_hard"] if summary.get(f"{key}_hard") is not None else None
         rows = load_jsonl(os.path.join(run_dir, rel))
         rec["n_test"] = len(rows)
@@ -88,6 +117,10 @@ def main() -> None:
             lens = [len(tok(str(r.get("response", "")), add_special_tokens=False)["input_ids"]) for r in rows]
             rec["avg_gen_tokens"] = statistics.mean(lens)
             rec["frac_hit_max_new_tokens"] = sum(n >= info["max_new"] for n in lens) / len(lens)
+            # Long-budget LiveMath runs: the model often ends with \boxed{X} instead of <answer>X</answer>,
+            # which the upstream scorer marks wrong. Report a lenient score alongside the strict one.
+            if info["task"] == "livemath" and info["max_new"] != MAX_NEW["livemath"]:
+                rec["test_hard_lenient"] = 100 * statistics.mean(lenient_livemath_correct(r) for r in rows)
         runs.append(rec)
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -102,22 +135,26 @@ def main() -> None:
         ("Init-only p0, skill_section", "init", "skill_section"),
         ("Init-only max-pooled p0, prompt_start", "init_maxpool", "prompt_start"),
         ("Init-only mean-pooled p0, prompt_start", "init_meanpool", "prompt_start"),
+        ("Init-only windowed mean-pooled p0 (window 8, stride 6), prompt_start", "init_winpool_w8s6", "prompt_start"),
+        ("Init-only windowed mean-pooled p0 (window 8, stride 6), skill_section", "init_winpool_w8s6", "skill_section"),
         ("SoftSkill, prompt_start", "train", "prompt_start"),
         ("SoftSkill, skill_section", "train", "skill_section"),
     ]
     for gen in sorted({r["max_new"] for r in runs if r["max_new"] != MAX_NEW[r["task"]]}):
         methods += [(f"{label} [max_new_tokens {gen}]", mode, pos, gen) for label, mode, pos in list(methods)]
     for model in sorted({r["model"] for r in runs}):
-        lines += [f"## {model}", "", "| Method | SearchQA test-hard | SearchQA test-soft | LiveMath test-hard | LiveMath test-soft | seeds (SQA/LM) |", "|---|---|---|---|---|---|"]
+        lines += [f"## {model}", "", "| Method | SearchQA test-hard | SearchQA test-soft | LiveMath test-hard | LiveMath test-soft | LiveMath test-hard, lenient \\boxed (gen>16 only) | seeds (SQA/LM) |", "|---|---|---|---|---|---|---|"]
         for label, mode, pos, *gen in methods:
             cells, seeds = [], []
             for task in ("searchqa", "livemath"):
                 want = gen[0] if gen else MAX_NEW[task]
                 sel = [r for r in runs if r["model"] == model and r["task"] == task and r["mode"] == mode and (pos is None or r["pos"] == pos) and r["max_new"] == want]
                 cells += [fmt([r["test_hard"] for r in sel if r["test_hard"] is not None]), fmt([r["test_soft"] for r in sel if r["test_soft"] is not None])]
+                if task == "livemath":
+                    cells.append(fmt([r["test_hard_lenient"] for r in sel if r.get("test_hard_lenient") is not None]))
                 seeds.append(",".join(str(r["seed"]) for r in sorted(sel, key=lambda r: r["seed"])) or "–")
             lines.append(f"| {label} | " + " | ".join(cells) + f" | {' / '.join(seeds)} |")
-        lines += ["", "### Per-run", "", "| Run | test-hard | test-soft | selected epoch | val (per epoch, gate metric) | avg gen tokens | hit max_new_tokens |", "|---|---|---|---|---|---|---|"]
+        lines += ["", "### Per-run", "", "| Run | test-hard | test-soft | test-hard lenient | selected epoch | val (per epoch, gate metric) | avg gen tokens | hit max_new_tokens |", "|---|---|---|---|---|---|---|---|"]
         for r in [r for r in runs if r["model"] == model]:
             val = ""
             if r["mode"] == "train":
@@ -130,7 +167,8 @@ def main() -> None:
             ts = f"{r['test_soft']:.1f}" if r["test_soft"] is not None else "–"
             agt = f"{r['avg_gen_tokens']:.1f}" if r.get("avg_gen_tokens") is not None else "–"
             hit = f"{100 * r['frac_hit_max_new_tokens']:.0f}%" if r.get("frac_hit_max_new_tokens") is not None else "–"
-            lines.append(f"| {r['run']} | {th} | {ts} | {r.get('selected_epoch', '') or ''} | {val} | {agt} | {hit} |")
+            tl = f"{r['test_hard_lenient']:.1f}" if r.get("test_hard_lenient") is not None else "–"
+            lines.append(f"| {r['run']} | {th} | {ts} | {tl} | {r.get('selected_epoch', '') or ''} | {val} | {agt} | {hit} |")
         lines.append("")
     with open(os.path.join(args.out_dir, "summary.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

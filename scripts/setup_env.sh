@@ -8,6 +8,8 @@ git -C "${REPO}" submodule update --init
 # Apply our patches to the pinned upstream checkout (idempotent):
 #   qwen3.patch                       opt-in gradient checkpointing (single-round + agentic)
 #   spreadsheet_docker_sandbox.patch  opt-in Docker sandbox for SpreadsheetBench generated code
+#   pooled_init.patch                 init_strategy text_max_pool / text_mean_pool
+#   window_pooled_init.patch          init_strategy text_mean_pool_window (applied after pooled_init)
 for patch in "${REPO}"/patches/*.patch; do
   if git -C "${REPO}/third_party/SoftSkill" apply --check "${patch}" 2>/dev/null; then
     git -C "${REPO}/third_party/SoftSkill" apply "${patch}"
